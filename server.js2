@@ -1,87 +1,44 @@
-// -------------------------
-// Servidor Node.js puro
-// -------------------------
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const { URLSearchParams } = require("url");
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const querystring = require('querystring');
 
 const PORT = 3000;
-const publicDir = path.join(__dirname, "public");
+const DB_FILE = path.join(__dirname, 'banco.db');
 
-// Garante a pasta public
-if (!fs.existsSync(publicDir)) {
-  fs.mkdirSync(publicDir);
+function salvarDados(dados) {
+  const linha = `${new Date().toLocaleString()} | Indicador: ${dados.indicador} | Candidato: ${dados.candidato} | CPF: ${dados.cpf} | Nascimento: ${dados.nascimento}\n`;
+  fs.appendFileSync(DB_FILE, linha, 'utf8');
 }
 
-// Caminho do arquivo de dados
-const dataFile = path.join(__dirname, "candidatos.txt");
-
-// Função para servir arquivos estáticos (HTML, CSS, JS, imagens)
-function serveFile(res, filepath, contentType) {
-  fs.readFile(filepath, (err, content) => {
-    if (err) {
-      res.writeHead(404);
-      res.end("Arquivo não encontrado");
-    } else {
-      res.writeHead(200, { "Content-Type": contentType });
-      res.end(content);
-    }
-  });
-}
-
-// Cria servidor HTTP
 const server = http.createServer((req, res) => {
-  if (req.method === "GET") {
-    if (req.url === "/" || req.url === "/index.html") {
-      serveFile(res, path.join(__dirname, "index.html"), "text/html");
-    } else if (req.url.startsWith("/imagens/")) {
-      serveFile(res, path.join(__dirname, req.url), "image/png");
-    } else {
-      res.writeHead(404);
-      res.end("Página não encontrada");
-    }
-  }
+  if (req.url === '/' && req.method === 'GET') {
+    const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+  } else if (req.url === '/enviar' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', () => {
+      const dados = querystring.parse(body);
 
-  // Receber dados do formulário
-  else if (req.method === "POST" && req.url === "/enviar") {
-    let body = "";
-    req.on("data", chunk => {
-      body += chunk.toString();
+      const cpfValido = /^\d{11}$/.test(dados.cpf);
+      if (!cpfValido) {
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<h3>CPF inválido. Digite apenas números com 11 dígitos.</h3><a href="/">Voltar</a>');
+        return;
+      }
+
+      salvarDados(dados);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<h2>Dados enviados com sucesso!</h2><a href="/">Voltar</a>`);
     });
-    req.on("end", () => {
-      const params = new URLSearchParams(body);
-
-      const indicador = params.get("indicador");
-      const candidato = params.get("candidato");
-      const cpf = params.get("cpf");
-      const nascimento = params.get("nascimento");
-
-      const registro = `\n${new Date().toLocaleString()} | Indicador: ${indicador} | Candidato: ${candidato} | CPF: ${cpf} | Nascimento: ${nascimento}`;
-
-      fs.appendFileSync(dataFile, registro);
-
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(`
-        <html lang="pt-BR">
-          <head><meta charset="UTF-8"><title>Sucesso</title></head>
-          <body style="font-family:sans-serif;text-align:center;padding:40px;">
-            <h2>✅ Candidato recomendado com sucesso!</h2>
-            <a href="/">Voltar ao formulário</a>
-          </body>
-        </html>
-      `);
-    });
-  }
-
-  // Outros métodos não permitidos
-  else {
-    res.writeHead(405);
-    res.end("Método não permitido");
+  } else {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Página não encontrada');
   }
 });
 
-// Inicia o servidor
 server.listen(PORT, () => {
-  console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
