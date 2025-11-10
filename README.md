@@ -42,5 +42,12 @@ npm install
 node server.js
 
 
+or 
+
+npm init -y
+npm install express multer sqlite3 sqlite cors
+node server.js
+
+
 Acesse no navegador:
 👉 http://localhost:3000
